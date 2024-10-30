@@ -624,57 +624,54 @@ class Parser:
     
     def if_statement(self, original=[]):
         self.advance()
+        
+        # check for condition
         condition_tok = []
-        while not check(self.current_token, None) and not check(self.current_token, Token("COLON")):
+        while not check(self.current_token, Token("COLON")) and not check(self.current_token, None):
             condition_tok += [self.current_token]
             self.advance()
-
+        
         if not condition_tok:
             return None, Error("SyntaxError", "Expected condition")
-        
+
         if not self.current_token:
             return None, Error("SyntaxError", "Expected ':'")
         
         new_parser = Parser(condition_tok)
-        type_, res, error = new_parser.generate_syntax_branch()
+        ctype, condition, error = new_parser.generate_syntax_branch()
         if error:
             return None, error
-        
-        condition_parsed = (type_, res)
-        self.advance()
 
+        # check for value
+        self.advance()
         value_tok = []
-        while not check(self.current_token, None) and not check(self.current_token, Token("KEYWORD", "else")):
+        while not check(self.current_token, Token("KEYWORD", "else")) and not check(self.current_token, None):
             value_tok += [self.current_token]
             self.advance()
-
+        
         if not value_tok:
             return None, Error("SyntaxError", "Expected value")
-
+        
         new_parser = Parser(value_tok)
-        type_, res, error = new_parser.generate_syntax_branch()
+        vtype, value, error = new_parser.generate_syntax_branch()
         if error:
             return None, error
-        
-        value_parsed = (type_, res)
 
-        original += [[condition_parsed, value_parsed]]
         if not self.current_token:
-            return original, None
+            return original + [[(ctype, condition), (vtype, value)]], None
         
         self.advance()
-        if not check(self.current_token, Token("COLON")) and not check(self.current_token, Token("KEYWORD", "if")):
-            if self.current_token:
-                return None, Error("SyntaxError", f"Expected ':' or 'if', not {NONE_VALUES_DICT.get(self.current_token.type, self.current_token.value)}")
-            
-            return None, Error("SyntaxError", "Expected ':' or 'if'")
-
+        if check(self.current_token, None):
+            return None, Error("SyntaxError", "Expected 'if' or ':'")
+        
+        if not check(self.current_token, Token("KEYWORD", "if")) and not check(self.current_token, Token("COLON")):
+            return None, Error("SyntaxError", f"Expected 'if' or ':', not '{NONE_VALUES_DICT.get(self.current_token, self.current_token.value)}'")
+        
         if check(self.current_token, Token("KEYWORD", "if")):
-            # else if
-            res, error = self.if_statement(original)
+            res, error = self.if_statement(original + [[(ctype, condition), (vtype, value)]])
             if error:
                 return None, error
-
+            
             return res, None
         
         self.advance()
@@ -687,8 +684,7 @@ class Parser:
         if error:
             return None, error
         
-        value_parsed = (type_, res)
-        return original + [value_parsed], None
+        return original + [[(ctype, condition), (vtype, value)]] + [(type_, res)], None
 
 # Interpreter
 class Interpreter:
