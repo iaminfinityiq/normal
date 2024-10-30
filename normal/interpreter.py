@@ -18,7 +18,8 @@ KEYWORDS = [
 
 OFFICIAL_DATA_TYPES = [
     "NUMBER",
-    "BOOLEAN"
+    "BOOLEAN",
+    "NULL"
 ]
 
 NONE_VALUES_DICT = {
@@ -153,7 +154,6 @@ class Token:
             return None, Error("TypeError", f"Expected number, got {value.type.lower()}")
         
         res = float(self.value) - float(value.value)
-        print("SUBTRACTION", res)
         return Token("NUMBER", int(res) if res % 1 == 0 else res), None
     
     def __mul__(self, value):
@@ -205,7 +205,7 @@ class Variable:
         self.immutable = immutable
     
     def __repr__(self):
-        return f"(VARIABLE {self.name}: {self.value.__repr__()})"
+        return f"(VARIABLE {self.name}: {self.value.__repr__()}) (immutable = {str(self.immutable).upper()})"
 
 class SymbolTable:
     def __init__(self):
@@ -366,6 +366,9 @@ class Lexer:
         if identifier in ["true", "false"]:
             return Token("BOOLEAN", identifier), None
         
+        if identifier == "null":
+            return Token("NULL", "null"), None
+        
         return Token("IDENTIFIER", identifier), None
     
     def make_ee(self):
@@ -489,7 +492,14 @@ class Parser:
         }
 
         while not check(self.current_token, None):
-            if self.current_token.type in ["NUMBER", "IDENTIFIER", "BOOLEAN"]:
+            if check(self.current_token, Token("KEYWORD", "and")):
+                self.current_token = Token("AND")
+            elif check(self.current_token, Token("KEYWORD", "or")):
+                self.current_token = Token("OR")
+            elif check(self.current_token, Token("KEYWORD", "not")):
+                self.current_token = Token("NOT")
+
+            if self.current_token.type in OFFICIAL_DATA_TYPES or check(self.current_token, Token("IDENTIFIER")):
                 postfix += [self.current_token]
             elif check(self.current_token, Token("KEYWORD", "if")):
                 stack = []
@@ -548,7 +558,7 @@ class Parser:
                             continue
 
                         if self.current_token.type not in precedence:
-                            return None, Error("SyntaxError", f"Unexpected character: '{NONE_VALUES_DICT[self.current_token.type]}'")
+                            return None, Error("SyntaxError", f"Unexpected character: '{NONE_VALUES_DICT.get(self.current_token.type, self.current_token.value)}'")
 
                         if precedence[self.current_token.type] <= precedence[operators[-1]] and precedence[self.current_token.type] != precedence["POW"] and precedence[operators[-1]] != precedence["POW"]:
                             postfix += [Token(operators.pop())]
@@ -556,7 +566,7 @@ class Parser:
                         operators += [self.current_token.type]
             
             self.advance()
-        
+
         temp = operators.copy()
         while operators:
             match operators.pop():
@@ -662,7 +672,7 @@ class Parser:
         if variable_name not in symbol_table.table:
             return None, Error("SyntaxError", f"There are not any variable declaration with the name '{variable_name}'")
 
-        return Variable(variable_name, value, True), None
+        return Variable(variable_name, value, False), None
     
     def if_statement(self, original=[]):
         self.advance()
@@ -688,7 +698,7 @@ class Parser:
 
         if not self.current_token:
             return None, Error("SyntaxError", "Expected ':'")
-        
+
         new_parser = Parser(condition_tok)
         ctype, condition, error = new_parser.generate_syntax_branch()
         if error:
@@ -790,7 +800,7 @@ class Interpreter:
     def run_postfix(self):
         stack = []
         for token in self.res:
-            if check(token, Token("NUMBER")) or check(token, Token("BOOLEAN")):
+            if token.type in OFFICIAL_DATA_TYPES:
                 stack += [token]
             elif check(token, Token("IDENTIFIER")):
                 res, error = symbol_table.get(token.value)
@@ -976,6 +986,9 @@ def translate_boolean(value):
         
             if value == Token("NUMBER"):
                 return value.value != 0
+            
+            if value == Token("NULL"):
+                return False
 
 def check(a, b):
     if isinstance(a, Token) or isinstance(b, Token):
