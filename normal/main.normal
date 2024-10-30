@@ -1,13 +1,2 @@
-let team_a be 1000
-let team_b be 2000
-
-let winner be if team_a < team_b: team_b else: team_a
-
-constant team_c is 10000
-if team_a < team_b: team_b is now team_b - team_a else: team_a is now team_a - team_b
-
-if winner < team_c: winner is now team_c
-team_a
-team_b
-team_c
-winner
+let a be 5
+if (a == 5): (if 2 == 1: 5 else: 3)
