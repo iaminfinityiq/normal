@@ -29,6 +29,12 @@ NONE_VALUES_DICT = {
     "POW": "^",
     "LPAREN": "(",
     "RPAREN": ")",
+    "EE": "=",
+    "NE": "!",
+    "GT": ">",
+    "LT": "<",
+    "GE": ">",
+    "LE": "<",
     "COLON": ":"
 }
 
@@ -469,7 +475,7 @@ class Parser:
             "OR": 1,
             "AND": 2,
             "NOT": 3,
-            "EQ": 4,
+            "EE": 4,
             "NE": 4,
             "GT": 4,
             "GE": 4,
@@ -485,6 +491,42 @@ class Parser:
         while not check(self.current_token, None):
             if self.current_token.type in ["NUMBER", "IDENTIFIER", "BOOLEAN"]:
                 postfix += [self.current_token]
+            elif check(self.current_token, Token("KEYWORD", "if")):
+                stack = []
+                if_tok = []
+                while not check(self.current_token, None):
+                    if check(self.current_token, Token("LPAREN")):
+                        stack += [Token("LPAREN")]
+                    
+                    if check(self.current_token, Token("RPAREN")):
+                        if not stack:
+                            break
+
+                        if not check(stack.pop(), Token("LPAREN")):
+                            return None, Error("SyntaxError", "Unexpected ')'")
+                    
+                    if_tok += [self.current_token]
+                    self.advance()
+                
+                if check(self.current_token, Token("RPAREN")):
+                    if "LPAREN" not in operators:
+                        return None, Error("SyntaxError", "Unexpected ')'")
+
+                    operators = operators[::-1]
+                    operators.remove("LPAREN")
+                    operators = operators[::-1]
+                
+                new_parser = Parser(if_tok)
+                type_, res, error = new_parser.generate_syntax_branch()
+                if error:
+                    return None, error
+                
+                new_interpreter = Interpreter(type_, res)
+                res, error = new_interpreter.run_tokens()
+                if error:
+                    return None, error
+                
+                postfix += [res]
             elif check(self.current_token, Token("KEYWORD")):
                 return None, Error("SyntaxError", f"'{NONE_VALUES_DICT.get(self.current_token.type, self.current_token.value)}' can't be in expressions")
             else:
@@ -627,7 +669,17 @@ class Parser:
         
         # check for condition
         condition_tok = []
-        while not check(self.current_token, Token("COLON")) and not check(self.current_token, None):
+        stack = []
+        while (not check(self.current_token, Token("COLON")) or stack) and not check(self.current_token, None):
+            if check(self.current_token, Token("LPAREN")):
+                stack += ["LPAREN"]
+            elif check(self.current_token, Token("RPAREN")):
+                if not stack:
+                    return None, Error("SyntaxError", "Unexpected ')'")
+                
+                if stack.pop() != "LPAREN":
+                    return None, Error("SyntaxError", "Unexpected ')'")
+                
             condition_tok += [self.current_token]
             self.advance()
         
@@ -645,7 +697,17 @@ class Parser:
         # check for value
         self.advance()
         value_tok = []
-        while not check(self.current_token, Token("KEYWORD", "else")) and not check(self.current_token, None):
+        stack = []
+        while (not check(self.current_token, Token("KEYWORD", "else")) or stack) and not check(self.current_token, None):
+            if check(self.current_token, Token("LPAREN")):
+                stack += ["LPAREN"]
+            elif check(self.current_token, Token("RPAREN")):
+                if not stack:
+                    return None, Error("SyntaxError", "Unexpected ')'")
+                
+                if stack.pop() != "LPAREN":
+                    return None, Error("SyntaxError", "Unexpected ')'")
+                
             value_tok += [self.current_token]
             self.advance()
         
